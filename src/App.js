@@ -1,11 +1,12 @@
 import React, { Component } from "react";
+import MainScreen from "./screens/MainScreen";
 
 class App extends Component {
   state = {};
   render() {
     return (
       <>
-        <h1>ok</h1>
+        <MainScreen />
       </>
     );
   }

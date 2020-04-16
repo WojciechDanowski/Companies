@@ -23,14 +23,23 @@ class CompaniesTable extends Component {
 
   handlePageSizeChange = ({ target: { value } }) =>
     this.setState({
+      pageNumber: 0,
       pageSize: value,
     });
+
+  onPageChange = (newPageIndex) => {
+    this.setState({
+      pageNumber: newPageIndex,
+    });
+  };
 
   render() {
     const { pageSize, pageNumber, columns, rowData } = this.state;
 
     const itemOffset = pageNumber * pageSize;
     const visibleRows = rowData.slice(itemOffset, itemOffset + pageSize);
+
+    const pageCount = Math.ceil(rowData.length / pageSize);
 
     return (
       <>
@@ -46,7 +55,11 @@ class CompaniesTable extends Component {
             })}
           </select>
         </label>
-        <Pager />
+        <Pager
+          pageCount={pageCount}
+          pageIndex={pageNumber}
+          onPageChange={this.onPageChange}
+        />
         <table>
           <thead>
             <tr>

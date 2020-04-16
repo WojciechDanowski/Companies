@@ -1,0 +1,14 @@
+.pagingItem {
+
+    margin: 0 2px;
+    cursor: pointer;
+}
+
+.pagingItem:hover {
+    background-color: royalblue;
+}
+
+.pagingItem.active {
+    color: white;
+    background-color: deepskyblue;
+}

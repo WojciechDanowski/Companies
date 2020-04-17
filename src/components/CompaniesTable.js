@@ -32,7 +32,7 @@ class CompaniesTable extends Component {
   handlePageSizeChange = ({ target: { value } }) =>
     this.setState({
       pageNumber: 0,
-      pageSize: value,
+      pageSize: parseInt(value, 10),
     });
 
   onPageChange = (newPageIndex) => {
@@ -42,12 +42,19 @@ class CompaniesTable extends Component {
   };
 
   getValueElement = (column, data) => {
-    return data[column] || "...";
+    const value = data[column];
+    if (value === undefined) {
+      return "-";
+    }
+    return value;
   };
 
   fetchIncomeDataForVisibleRows = () => {
     const visibleRows = this.getVisibleRows();
     const itemsWithoutIncomeData = visibleRows.filter((row) => {
+      if (row._fetched) {
+        return false;
+      }
       for (const incomeDataKey of incomeDataKeys) {
         if (row[incomeDataKey] === undefined) {
           return true;
@@ -61,28 +68,78 @@ class CompaniesTable extends Component {
         .then((response) => response.json())
         .then((incomeData) => {
           let sum = 0;
+          let previousMonthSum = 0;
           const { incomes } = incomeData;
-          incomes.map((item) => {
+          incomes.forEach((item) => {
             sum = parseFloat((sum + parseFloat(item.value)).toFixed(2));
           });
-          const average = sum / incomes.length;
-          console.log(average);
+          const average = (sum / incomes.length).toFixed(2);
+
+          const currentYear = new Date().getFullYear();
+          const currentMonth = new Date().getMonth();
+          const searchYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const previousMonthIncomes = incomes.filter(({ date }) => {
+            const currentDate = new Date(date);
+            const currentDateYear = currentDate.getFullYear();
+            const currentDateMonth = currentDate.getMonth();
+
+            return (
+              currentDateYear === searchYear &&
+              currentDateMonth === previousMonth
+            );
+          });
+          previousMonthIncomes.forEach((income) => {
+            previousMonthSum = parseFloat(
+              (previousMonthSum + parseFloat(income.value)).toFixed(2)
+            );
+          });
+          return {
+            id,
+            ...rest,
+            total_income: sum,
+            average_income: average,
+            last_month_income: previousMonthSum,
+            _fetched: true,
+          };
         });
     });
-    Promise.all(fetchPromises);
+
+    Promise.all(fetchPromises).then((fullVisibleRows) => {
+      this.setState((prevState) => {
+        const findbyId = (id) => {
+          return prevState.rowData.find((row) => row.id === id);
+        };
+        for (const visibleRow of fullVisibleRows) {
+          const item = findbyId(visibleRow.id);
+
+          Object.assign(item, visibleRow);
+        }
+        return { ...prevState, rowData: [...prevState.rowData] };
+      });
+    });
   };
 
   getVisibleRows = () => {
     const { pageSize, pageNumber, columns, rowData } = this.state;
     const itemOffset = pageNumber * pageSize;
     const visibleRows = rowData.slice(itemOffset, itemOffset + pageSize);
+
     return visibleRows;
   };
 
   componentDidUpdate(prevProps, prevState) {
-    const { pageSize: prevPageSize, pageNumber: prevPageNumber } = prevState;
-    const { pageSize, pageNumber } = this.state;
-    if (prevPageSize !== pageSizes || prevPageNumber !== pageNumber) {
+    const {
+      pageSize: prevPageSize,
+      pageNumber: prevPageNumber,
+      rowData: prevRowData,
+    } = prevState;
+    const { pageSize, pageNumber, rowData } = this.state;
+    if (
+      prevPageSize !== pageSize ||
+      prevPageNumber !== pageNumber ||
+      prevRowData.length !== rowData.length
+    ) {
       this.fetchIncomeDataForVisibleRows();
     }
   }

@@ -3,6 +3,37 @@ import Pager from "./Pager";
 const pageSizes = [10, 20, 30];
 const incomeDataKeys = ["total_income", "average_income", "last_month_income"];
 
+const sortNumeric = (a, b) => {
+  if (a === b) {
+    return 0;
+  }
+  if (Number(a) > Number(b)) {
+    return 1;
+  }
+  return -1;
+};
+
+const sortString = (a, b) => {
+  if (a === b) {
+    return 0;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return -1;
+};
+
+const columnDefinitions = [
+  {
+    key: "id",
+    sort: sortNumeric,
+  },
+  { key: "name", sort: sortString },
+  { key: "city", sort: sortString },
+  { key: "total_income", sort: sortNumeric },
+  { key: "average_income", sort: sortNumeric },
+  { key: "last_month_income", sort: sortNumeric },
+];
 class CompaniesTable extends Component {
   state = {
     columns: [
@@ -16,6 +47,7 @@ class CompaniesTable extends Component {
     rowData: [],
     pageSize: 10,
     pageNumber: 0,
+    sorters: [],
   };
 
   componentDidMount() {
@@ -120,10 +152,32 @@ class CompaniesTable extends Component {
     });
   };
 
+  getSortedRowData = () => {
+    const { sorters, rowData } = this.state;
+    let sortedRowData = [...rowData];
+
+    for (const sorter of sorters) {
+      const { sort } = columnDefinitions.find(
+        (definition) => definition.key === sorter.key
+      );
+      if (sorter.direction === "asc") {
+        sortedRowData.sort((a, b) => sort(a[sorter.key], b[sorter.key]));
+      } else {
+        sortedRowData = sortedRowData
+          .reverse()
+          .sort((a, b) => sort(a[sorter.key], b[sorter.key]))
+          .reverse();
+      }
+    }
+
+    return sortedRowData;
+  };
+
   getVisibleRows = () => {
-    const { pageSize, pageNumber, columns, rowData } = this.state;
+    const { pageSize, pageNumber } = this.state;
+    const sortedRowData = this.getSortedRowData();
     const itemOffset = pageNumber * pageSize;
-    const visibleRows = rowData.slice(itemOffset, itemOffset + pageSize);
+    const visibleRows = sortedRowData.slice(itemOffset, itemOffset + pageSize);
 
     return visibleRows;
   };
@@ -133,9 +187,12 @@ class CompaniesTable extends Component {
       pageSize: prevPageSize,
       pageNumber: prevPageNumber,
       rowData: prevRowData,
+      sorters: prevSorters,
     } = prevState;
-    const { pageSize, pageNumber, rowData } = this.state;
+    const { pageSize, pageNumber, rowData, sorters } = this.state;
+
     if (
+      prevSorters !== sorters ||
       prevPageSize !== pageSize ||
       prevPageNumber !== pageNumber ||
       prevRowData.length !== rowData.length
@@ -144,9 +201,59 @@ class CompaniesTable extends Component {
     }
   }
 
-  render() {
-    const { pageSize, pageNumber, columns, rowData } = this.state;
+  getColumns = () => {
+    const { sorters, columns } = this.state;
+    let resultColumns = [];
 
+    for (const column of columns) {
+      const sorter = sorters.find((sorter) => sorter.key === column);
+      const resultColumn = sorter
+        ? { key: column, direction: sorter.direction }
+        : { key: column };
+      resultColumns = [...resultColumns, resultColumn];
+    }
+
+    return resultColumns;
+  };
+  onColumnHeaderClick = (column) => {
+    const { sorters } = this.state;
+    const sorter = sorters.find((sorter) => sorter.key === column.key);
+    if (!sorter) {
+      this.setState(({ sorters, ...rest }) => ({
+        ...rest,
+        sorters: [...sorters, { key: column.key, direction: "asc" }],
+      }));
+      return;
+    }
+    sorter.direction = sorter.direction === "asc" ? "desc" : "asc";
+    this.setState({
+      sorters: [...sorters],
+    });
+  };
+
+  getDirectionLabel = (direction) => {
+    if (direction === "asc") {
+      return "🔻";
+    }
+    if (direction === "desc") {
+      return "🔺";
+    }
+    return "";
+  };
+
+  getHeaderElement = (column) => {
+    const { key, direction } = column;
+    return (
+      <th
+        onClick={() => this.onColumnHeaderClick(column)}
+        key={key}
+      >{`${key} ${this.getDirectionLabel(direction)} `}</th>
+    );
+  };
+
+  render() {
+    const { pageSize, pageNumber, rowData } = this.state;
+    const columns = this.getColumns();
     const visibleRows = this.getVisibleRows();
 
     const pageCount = Math.ceil(rowData.length / pageSize);
@@ -172,21 +279,15 @@ class CompaniesTable extends Component {
         />
         <table>
           <thead>
-            <tr>
-              {columns.map((item) => {
-                return <th key={item}> {item} </th>;
-              })}
-            </tr>
+            <tr>{columns.map(this.getHeaderElement)}</tr>
           </thead>
           <tbody>
             {visibleRows.map((item) => {
               return (
                 <tr key={item.id}>
-                  {columns.map((column) => {
+                  {columns.map(({ key }) => {
                     return (
-                      <td key={column}>
-                        {this.getValueElement(column, item)}{" "}
-                      </td>
+                      <td key={key}>{this.getValueElement(key, item)} </td>
                     );
                   })}
                 </tr>
